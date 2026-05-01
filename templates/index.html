@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stock Intelligence Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body {
+    margin: 0;
+    font-family: Arial;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+}
+
+.container {
+    display: flex;
+}
+
+.sidebar {
+    width: 240px;
+    height: 100vh;
+    padding: 20px;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+}
+
+button {
+    width: 100%;
+    margin: 6px 0;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: rgba(0,255,255,0.3);
+}
+
+.main {
+    flex: 1;
+    padding: 20px;
+}
+
+.glass {
+    background: rgba(255,255,255,0.08);
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+canvas {
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="sidebar">
+    <h2>Stocks</h2>
+
+    <button onclick="load('TCS.NS')">TCS</button>
+    <button onclick="load('INFY.NS')">INFY</button>
+    <button onclick="load('RELIANCE.NS')">RELIANCE</button>
+
+    <hr>
+
+    <button onclick="compare()">Compare</button>
+    <button onclick="insights()">Insights</button>
+
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="downloadXLSX()">Download XLSX</button>
+</div>
+
+<div class="main">
+
+    <h1>📊 Stock Intelligence Dashboard</h1>
+
+    <div class="glass" id="summary">Select stock...</div>
+
+    <canvas id="chart"></canvas>
+
+    <div class="glass" id="analysis"></div>
+
+    <div class="glass" id="insights"></div>
+
+</div>
+
+</div>
+
+<script>
+
+let chart;
+let currentSymbol = "TCS.NS";
+
+async function load(symbol) {
+    currentSymbol = symbol;
+
+    const res = await fetch(`/data/${symbol}`);
+    const data = await res.json();
+
+    const labels = data.map(d => d.Date);
+    const prices = data.map(d => d.Close);
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+            labels,
+            datasets: [{
+                label: symbol,
+                data: prices,
+                borderColor: "#00f5ff",
+                fill: true,
+                tension: 0.4
+            }]
+        }
+    });
+
+    const s = await fetch(`/summary/${symbol}`);
+    const summary = await s.json();
+
+    document.getElementById("summary").innerHTML = `
+        <b>${symbol}</b><br>
+        High: ${summary.high}<br>
+        Low: ${summary.low}<br>
+        Avg: ${summary.avg}<br>
+        Latest: ${summary.latest}
+    `;
+
+    let min = Math.min(...prices);
+    let max = Math.max(...prices);
+    let trend = prices[prices.length - 1] > prices[0] ? "📈 Uptrend" : "📉 Downtrend";
+
+    document.getElementById("analysis").innerHTML = `
+        <h3>Graph Analysis</h3>
+        Min: ${min.toFixed(2)}<br>
+        Max: ${max.toFixed(2)}<br>
+        Trend: ${trend}
+    `;
+}
+
+async function compare() {
+    const s1 = prompt("Stock 1");
+    const s2 = prompt("Stock 2");
+
+    const res = await fetch(`/compare?symbol1=${s1}&symbol2=${s2}`);
+    const data = await res.json();
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+            labels: data.labels,
+            datasets: [
+                { label: s1, data: data.s1, borderColor: "cyan" },
+                { label: s2, data: data.s2, borderColor: "orange" }
+            ]
+        }
+    });
+}
+
+async function insights() {
+    const res = await fetch("/insights");
+    const data = await res.json();
+
+    let html = "<h3>Top Movers</h3>";
+
+    data.forEach(d => {
+        html += `<div>${d.symbol}: ${d.change.toFixed(2)}</div>`;
+    });
+
+    document.getElementById("insights").innerHTML = html;
+}
+
+function downloadCSV() {
+    window.open(`/download_csv/${currentSymbol}`);
+}
+
+function downloadXLSX() {
+    window.open(`/download_xlsx/${currentSymbol}`);
+}
+
+load("TCS.NS");
+
+</script>
+
+</body>
+</html>
